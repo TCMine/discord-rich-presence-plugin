@@ -1,0 +1,737 @@
+From 8cab2fe75dce7aff1d5f0fc5a0665e1328c75064 Mon Sep 17 00:00:00 2001
+From: vekvoid <vektrm@gmail.com>
+Date: Mon, 8 Jun 2026 19:36:33 +0200
+Subject: [PATCH 1/5] feat: add user presence status configuration
+
+---
+ main.go       | 24 +++++++++++++++++++++++-
+ main_test.go  |  4 ++++
+ manifest.json | 27 +++++++++++++++++++++++++++
+ rpc.go        | 31 ++++++++++++++++++++++++++++---
+ rpc_test.go   | 10 +++++-----
+ 5 files changed, 87 insertions(+), 9 deletions(-)
+
+diff --git a/main.go b/main.go
+index 91cafc8..c9d3f5f 100644
+--- a/main.go
++++ b/main.go
+@@ -26,6 +26,7 @@ const (
+ 	clientIDKey             = "clientid"
+ 	usersKey                = "users"
+ 	activityNameKey         = "activityname"
++	presenceStatusKey       = "presencestatus"
+ 	activityNameTemplateKey = "activitynametemplate"
+ 	spotifyLinksKey         = "spotifylinks"
+ 	caaEnabledKey           = "caaenabled"
+@@ -64,6 +65,13 @@ type userToken struct {
+ 	Token    string `json:"token"`
+ }
+ 
++// pluginConfig represents the plugin config
++type pluginConfig struct {
++	clientID       string
++	users          map[string]string
++	presenceStatus string
++}
++
+ // discordPlugin implements the scrobbler and scheduler interfaces.
+ type discordPlugin struct{}
+ 
+@@ -120,6 +128,17 @@ func getConfig() (clientID string, users map[string]string, err error) {
+ 	return clientID, users, nil
+ }
+ 
++// getPresenceStatusFromConfig gets the configured presence status
++func getPresenceStatusFromConfig() string {
++	presenceStatus, ok := pdk.GetConfig(presenceStatusKey)
++	if !ok || presenceStatus == "" {
++		pdk.Log(pdk.LogWarn, "missing PresenceStatus in configuration")
++		return ""
++	}
++
++	return presenceStatus
++}
++
+ // ============================================================================
+ // Scrobbler Implementation
+ // ============================================================================
+@@ -177,6 +196,9 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
+ 		return err
+ 	}
+ 
++	// Load presence status
++	presenceStatus := getPresenceStatusFromConfig()
++
+ 	activityName, statusDisplayType := resolveActivityName(input.Track)
+ 
+ 	spotifyURL, artistSearchURL := resolveSpotifyLinks(input.Track)
+@@ -217,7 +239,7 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
+ 		StatusDisplayType: statusDisplayType,
+ 		Timestamps:        ts,
+ 		Assets:            assets,
+-	})
++	}, presenceStatus)
+ }
+ 
+ func (p *discordPlugin) handleStopped(input scrobbler.PlaybackReportRequest) error {
+diff --git a/main_test.go b/main_test.go
+index 2c80f48..8b0acb6 100644
+--- a/main_test.go
++++ b/main_test.go
+@@ -142,6 +142,7 @@ var _ = Describe("discordPlugin", func() {
+ 			pdk.PDKMock.On("GetConfig", caaEnabledKey).Return("", false)
+ 			pdk.PDKMock.On("GetConfig", activityNameKey).Return("", false)
+ 			pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
++			pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 		}
+ 
+ 		setupImageMocks := func() {
+@@ -169,6 +170,7 @@ var _ = Describe("discordPlugin", func() {
+ 			It("returns not authorized error when user not in config", func() {
+ 				pdk.PDKMock.On("GetConfig", clientIDKey).Return("test-client-id", true)
+ 				pdk.PDKMock.On("GetConfig", usersKey).Return(`[{"username":"otheruser","token":"token"}]`, true)
++				pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 
+ 				err := plugin.PlaybackReport(baseRequest("playing"))
+ 				Expect(err).To(HaveOccurred())
+@@ -274,6 +276,7 @@ var _ = Describe("discordPlugin", func() {
+ 				pdk.PDKMock.On("GetConfig", caaEnabledKey).Return("", false)
+ 				pdk.PDKMock.On("GetConfig", activityNameKey).Return(configValue, configExists)
+ 				pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
++				pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 
+ 				setupConnectMocks()
+ 				setupImageMocks()
+@@ -304,6 +307,7 @@ var _ = Describe("discordPlugin", func() {
+ 				pdk.PDKMock.On("GetConfig", activityNameKey).Return("Custom", true)
+ 				pdk.PDKMock.On("GetConfig", activityNameTemplateKey).Return(template, templateExists)
+ 				pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
++				pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 
+ 				setupConnectMocks()
+ 				setupImageMocks()
+diff --git a/manifest.json b/manifest.json
+index d2c9583..3c007ed 100644
+--- a/manifest.json
++++ b/manifest.json
+@@ -85,6 +85,26 @@
+           "description": "When enabled, clicking the track title or album art in Discord opens the corresponding Spotify page",
+           "default": false
+         },
++        "presencestatus": {
++          "type": "string",
++          "title": "User Presence Status",
++          "description": "Choose the status displayed for the user on Discord",
++          "oneOf": [
++            {
++              "const": "online",
++              "title": "Online"
++            },
++            {
++              "const": "idle",
++              "title": "Idle"
++            },
++            {
++              "const": "dnd",
++              "title": "Do Not Disturb"
++            }
++          ],
++          "default": "dnd"
++        },
+         "users": {
+           "type": "array",
+           "title": "User Tokens",
+@@ -157,6 +177,13 @@
+           "type": "Control",
+           "scope": "#/properties/spotifylinks"
+         },
++        {
++          "type": "Control",
++          "scope": "#/properties/presencestatus",
++          "options": {
++            "format": "radio"
++          }
++        },
+         {
+           "type": "Control",
+           "scope": "#/properties/users",
+diff --git a/rpc.go b/rpc.go
+index 36fa258..06c74bf 100644
+--- a/rpc.go
++++ b/rpc.go
+@@ -58,6 +58,26 @@ const (
+ 	maxURLLength  = 256 // Max characters for URL fields (details_url, state_url, etc.)
+ )
+ 
++// Discord User Presence status strings
++const (
++	presenceStatusOnline       = "online"
++	presenceStatusIdle         = "idle"
++	presenceStatusDoNotDisturb = "dnd"
++
++	defaultPresenceStatus = presenceStatusDoNotDisturb
++)
++
++func isValidPresenceStatus(status string) bool {
++	switch status {
++	case presenceStatusOnline,
++		presenceStatusIdle,
++		presenceStatusDoNotDisturb:
++		return true
++	default:
++		return false
++	}
++}
++
+ // truncateText truncates s to maxTextLength runes, appending "…" if truncated.
+ func truncateText(s string) string {
+ 	runes := []rune(s)
+@@ -218,7 +238,7 @@ func (r *discordRPC) processImage(imageURL, clientID, token string, ttl int64) (
+ // ============================================================================
+ 
+ // sendActivity sends an activity update to Discord.
+-func (r *discordRPC) sendActivity(clientID, username, token string, data activity) error {
++func (r *discordRPC) sendActivity(clientID, username, token string, data activity, presenceStatus string) error {
+ 	pdk.Log(pdk.LogInfo, fmt.Sprintf("Sending activity for user %s: %s - %s", username, data.Details, data.State))
+ 
+ 	// Truncate text fields to Discord's 128-character limit
+@@ -262,9 +282,15 @@ func (r *discordRPC) sendActivity(clientID, username, token string, data activit
+ 		}
+ 	}
+ 
++	status := presenceStatus
++	if !isValidPresenceStatus(status) {
++		pdk.Log(pdk.LogWarn, fmt.Sprintf("Invalid presence status '%s'. Using '%s'", status, defaultPresenceStatus))
++		status = defaultPresenceStatus
++	}
++
+ 	presence := presencePayload{
+ 		Activities: []activity{data},
+-		Status:     "dnd",
++		Status:     status,
+ 		Afk:        false,
+ 	}
+ 	return r.sendMessage(username, presenceOpCode, presence)
+@@ -454,4 +480,3 @@ func (r *discordRPC) handleHeartbeatCallback(username string) error {
+ 	}
+ 	return nil
+ }
+-
+diff --git a/rpc_test.go b/rpc_test.go
+index fc08783..bb9a068 100644
+--- a/rpc_test.go
++++ b/rpc_test.go
+@@ -332,7 +332,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			})
++			}, defaultPresenceStatus)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -364,7 +364,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			})
++			}, defaultPresenceStatus)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -391,7 +391,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			})
++			}, defaultPresenceStatus)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -419,7 +419,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			})
++			}, defaultPresenceStatus)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -479,7 +479,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallText:  "Navidrome",
+ 					SmallURL:   longURL,
+ 				},
+-			})
++			}, defaultPresenceStatus)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 	})
+
+From f078459d625913c44cfb31d1300f474282709f59 Mon Sep 17 00:00:00 2001
+From: vekvoid <vektrm@gmail.com>
+Date: Mon, 8 Jun 2026 19:57:44 +0200
+Subject: [PATCH 2/5] fix: remove unused pluginConfig struct
+
+---
+ main.go | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/main.go b/main.go
+index c9d3f5f..f363257 100644
+--- a/main.go
++++ b/main.go
+@@ -65,13 +65,6 @@ type userToken struct {
+ 	Token    string `json:"token"`
+ }
+ 
+-// pluginConfig represents the plugin config
+-type pluginConfig struct {
+-	clientID       string
+-	users          map[string]string
+-	presenceStatus string
+-}
+-
+ // discordPlugin implements the scrobbler and scheduler interfaces.
+ type discordPlugin struct{}
+ 
+
+From 88ece0ef0d0b3c6d99657667d4964d167da6bb8f Mon Sep 17 00:00:00 2001
+From: vekvoid <vektrm@gmail.com>
+Date: Sat, 13 Jun 2026 18:07:46 +0200
+Subject: [PATCH 3/5] feat: add per-user presence status selection
+
+---
+ main.go       | 61 ++++++++++++++++++++-------------------------------
+ main_test.go  | 14 +++++++++---
+ manifest.json | 58 +++++++++++++++++++++++-------------------------
+ 3 files changed, 63 insertions(+), 70 deletions(-)
+
+diff --git a/main.go b/main.go
+index 2772839..a9d4181 100644
+--- a/main.go
++++ b/main.go
+@@ -59,10 +59,11 @@ const (
+ 	activityNameCustom  = "Custom"
+ )
+ 
+-// userToken represents a user-token mapping from the config
+-type userToken struct {
+-	Username string `json:"username"`
+-	Token    string `json:"token"`
++// userConfig represents a user-token mapping from the config
++type userConfig struct {
++	Username       string `json:"username"`
++	Token          string `json:"token"`
++	PresenceStatus string `json:"presencestatus"`
+ }
+ 
+ // discordPlugin implements the scrobbler and scheduler interfaces.
+@@ -79,7 +80,7 @@ func init() {
+ }
+ 
+ // getConfig loads the plugin configuration.
+-func getConfig() (clientID string, users map[string]string, err error) {
++func getConfig() (clientID string, users map[string]userConfig, err error) {
+ 	clientID, ok := pdk.GetConfig(clientIDKey)
+ 	if !ok || clientID == "" {
+ 		pdk.Log(pdk.LogWarn, "missing ClientID in configuration")
+@@ -94,22 +95,22 @@ func getConfig() (clientID string, users map[string]string, err error) {
+ 	}
+ 
+ 	// Parse the JSON array
+-	var userTokens []userToken
+-	if err := json.Unmarshal([]byte(usersJSON), &userTokens); err != nil {
++	var userConfigs []userConfig
++	if err := json.Unmarshal([]byte(usersJSON), &userConfigs); err != nil {
+ 		pdk.Log(pdk.LogError, fmt.Sprintf("failed to parse users config: %v", err))
+ 		return clientID, nil, nil
+ 	}
+ 
+-	if len(userTokens) == 0 {
++	if len(userConfigs) == 0 {
+ 		pdk.Log(pdk.LogWarn, "no users configured")
+ 		return clientID, nil, nil
+ 	}
+ 
+ 	// Build the users map
+-	users = make(map[string]string)
+-	for _, ut := range userTokens {
+-		if ut.Username != "" && ut.Token != "" {
+-			users[ut.Username] = ut.Token
++	users = make(map[string]userConfig)
++	for _, uc := range userConfigs {
++		if uc.Username != "" && uc.Token != "" {
++			users[uc.Username] = uc
+ 		}
+ 	}
+ 
+@@ -121,17 +122,6 @@ func getConfig() (clientID string, users map[string]string, err error) {
+ 	return clientID, users, nil
+ }
+ 
+-// getPresenceStatusFromConfig gets the configured presence status
+-func getPresenceStatusFromConfig() string {
+-	presenceStatus, ok := pdk.GetConfig(presenceStatusKey)
+-	if !ok || presenceStatus == "" {
+-		pdk.Log(pdk.LogWarn, "missing PresenceStatus in configuration")
+-		return ""
+-	}
+-
+-	return presenceStatus
+-}
+-
+ // ============================================================================
+ // Scrobbler Implementation
+ // ============================================================================
+@@ -184,14 +174,11 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
+ 	paused := input.State == statePaused
+ 	pdk.Log(pdk.LogInfo, fmt.Sprintf("Setting presence for user %s, track: %s (paused=%v)", input.Username, input.Track.Title, paused))
+ 
+-	clientID, userToken, err := connectUser(input.Username)
++	clientID, userConfig, err := connectUser(input.Username)
+ 	if err != nil {
+ 		return err
+ 	}
+ 
+-	// Load presence status
+-	presenceStatus := getPresenceStatusFromConfig()
+-
+ 	activityName, statusDisplayType := resolveActivityName(input.Track)
+ 
+ 	spotifyURL, artistSearchURL := resolveSpotifyLinks(input.Track)
+@@ -221,7 +208,7 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
+ 		assets.SmallText = "Paused"
+ 	}
+ 
+-	return rpc.sendActivity(clientID, input.Username, userToken, activity{
++	return rpc.sendActivity(clientID, input.Username, userConfig.Token, activity{
+ 		Application:       clientID,
+ 		Name:              activityName,
+ 		Type:              2,
+@@ -232,7 +219,7 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
+ 		StatusDisplayType: statusDisplayType,
+ 		Timestamps:        ts,
+ 		Assets:            assets,
+-	}, presenceStatus)
++	}, userConfig.PresenceStatus)
+ }
+ 
+ func (p *discordPlugin) handleStopped(input scrobbler.PlaybackReportRequest) error {
+@@ -250,24 +237,24 @@ func (p *discordPlugin) handleStopped(input scrobbler.PlaybackReportRequest) err
+ 	return nil
+ }
+ 
+-func connectUser(username string) (clientID, token string, err error) {
++func connectUser(username string) (clientID string, config userConfig, err error) {
+ 	clientID, users, err := getConfig()
+ 	if err != nil {
+-		return "", "", fmt.Errorf("failed to get config: %w", err)
++		return "", userConfig{}, fmt.Errorf("failed to get config: %w", err)
+ 	}
+ 	if clientID == "" {
+-		return "", "", fmt.Errorf("missing ClientID in configuration")
++		return "", userConfig{}, fmt.Errorf("missing ClientID in configuration")
+ 	}
+ 
+-	token, authorized := users[username]
++	config, authorized := users[username]
+ 	if !authorized {
+-		return "", "", fmt.Errorf("%w: user '%s' not authorized", scrobbler.ScrobblerErrorNotAuthorized, username)
++		return "", userConfig{}, fmt.Errorf("%w: user '%s' not authorized", scrobbler.ScrobblerErrorNotAuthorized, username)
+ 	}
+ 
+-	if err := rpc.connect(username, token); err != nil {
+-		return "", "", fmt.Errorf("failed to connect to Discord: %w", err)
++	if err := rpc.connect(username, config.Token); err != nil {
++		return "", userConfig{}, fmt.Errorf("failed to connect to Discord: %w", err)
+ 	}
+-	return clientID, token, nil
++	return clientID, config, nil
+ }
+ 
+ func resolveActivityName(track scrobbler.TrackInfo) (string, int) {
+diff --git a/main_test.go b/main_test.go
+index a59b700..8e25781 100644
+--- a/main_test.go
++++ b/main_test.go
+@@ -40,15 +40,23 @@ var _ = Describe("discordPlugin", func() {
+ 	Describe("getConfig", func() {
+ 		It("returns config values when properly set", func() {
+ 			pdk.PDKMock.On("GetConfig", clientIDKey).Return("test-client-id", true)
+-			pdk.PDKMock.On("GetConfig", usersKey).Return(`[{"username":"user1","token":"token1"},{"username":"user2","token":"token2"}]`, true)
++			pdk.PDKMock.On("GetConfig", usersKey).Return(`[{"username":"user1","token":"token1","presencestatus":"online"},{"username":"user2","token":"token2","presencestatus":"away"}]`, true)
+ 			pdk.PDKMock.On("Log", mock.Anything, mock.Anything).Maybe()
+ 
+ 			clientID, users, err := getConfig()
+ 			Expect(err).ToNot(HaveOccurred())
+ 			Expect(clientID).To(Equal("test-client-id"))
+ 			Expect(users).To(HaveLen(2))
+-			Expect(users["user1"]).To(Equal("token1"))
+-			Expect(users["user2"]).To(Equal("token2"))
++			Expect(users["user1"]).To(Equal(userConfig{
++				Username:       "user1",
++				Token:          "token1",
++				PresenceStatus: "online",
++			}))
++			Expect(users["user2"]).To(Equal(userConfig{
++				Username:       "user2",
++				Token:          "token2",
++				PresenceStatus: "away",
++			}))
+ 		})
+ 
+ 		It("returns empty client ID when not set", func() {
+diff --git a/manifest.json b/manifest.json
+index 02d7396..86dc0c5 100644
+--- a/manifest.json
++++ b/manifest.json
+@@ -85,30 +85,10 @@
+           "description": "When enabled, clicking the track title or album art in Discord opens the corresponding Spotify page",
+           "default": false
+         },
+-        "presencestatus": {
+-          "type": "string",
+-          "title": "User Presence Status",
+-          "description": "Choose the status displayed for the user on Discord",
+-          "oneOf": [
+-            {
+-              "const": "online",
+-              "title": "Online"
+-            },
+-            {
+-              "const": "idle",
+-              "title": "Idle"
+-            },
+-            {
+-              "const": "dnd",
+-              "title": "Do Not Disturb"
+-            }
+-          ],
+-          "default": "dnd"
+-        },
+         "users": {
+           "type": "array",
+-          "title": "User Tokens",
+-          "description": "Discord tokens for each Navidrome user. WARNING: Store tokens securely!",
++          "title": "User Configurations",
++          "description": "Discord configuration for each Navidrome user. WARNING: Store tokens securely!",
+           "minItems": 1,
+           "items": {
+             "type": "object",
+@@ -124,11 +104,32 @@
+                 "title": "Discord Token",
+                 "description": "The user's Discord token (keep this secret!)",
+                 "minLength": 1
++              },
++              "presencestatus": {
++                "type": "string",
++                "title": "User Presence Status",
++                "description": "Choose the status displayed for the user on Discord",
++                "oneOf": [
++                  {
++                    "const": "online",
++                    "title": "Online"
++                  },
++                  {
++                    "const": "idle",
++                    "title": "Idle"
++                  },
++                  {
++                    "const": "dnd",
++                    "title": "Do Not Disturb"
++                  }
++                ],
++                "default": "dnd"
+               }
+             },
+             "required": [
+               "username",
+-              "token"
++              "token",
++              "presencestatus"
+             ]
+           }
+         }
+@@ -177,13 +178,6 @@
+           "type": "Control",
+           "scope": "#/properties/spotifylinks"
+         },
+-        {
+-          "type": "Control",
+-          "scope": "#/properties/presencestatus",
+-          "options": {
+-            "format": "radio"
+-          }
+-        },
+         {
+           "type": "Control",
+           "scope": "#/properties/users",
+@@ -202,6 +196,10 @@
+                   "options": {
+                     "format": "password"
+                   }
++                },
++                {
++                  "type": "Control",
++                  "scope": "#/properties/presencestatus"
+                 }
+               ]
+             }
+
+From 0cacacd49c6dae1997c2235ff3535e73d5d34dfa Mon Sep 17 00:00:00 2001
+From: vekvoid <vektrm@gmail.com>
+Date: Sat, 13 Jun 2026 22:31:39 +0200
+Subject: [PATCH 4/5] fix: remove unused presenceStatusKey
+
+---
+ main.go      | 1 -
+ main_test.go | 4 ----
+ 2 files changed, 5 deletions(-)
+
+diff --git a/main.go b/main.go
+index a9d4181..8b91159 100644
+--- a/main.go
++++ b/main.go
+@@ -26,7 +26,6 @@ const (
+ 	clientIDKey             = "clientid"
+ 	usersKey                = "users"
+ 	activityNameKey         = "activityname"
+-	presenceStatusKey       = "presencestatus"
+ 	activityNameTemplateKey = "activitynametemplate"
+ 	spotifyLinksKey         = "spotifylinks"
+ 	caaEnabledKey           = "caaenabled"
+diff --git a/main_test.go b/main_test.go
+index 8e25781..3f66448 100644
+--- a/main_test.go
++++ b/main_test.go
+@@ -150,7 +150,6 @@ var _ = Describe("discordPlugin", func() {
+ 			pdk.PDKMock.On("GetConfig", caaEnabledKey).Return("", false)
+ 			pdk.PDKMock.On("GetConfig", activityNameKey).Return("", false)
+ 			pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
+-			pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 		}
+ 
+ 		setupImageMocks := func() {
+@@ -178,7 +177,6 @@ var _ = Describe("discordPlugin", func() {
+ 			It("returns not authorized error when user not in config", func() {
+ 				pdk.PDKMock.On("GetConfig", clientIDKey).Return("test-client-id", true)
+ 				pdk.PDKMock.On("GetConfig", usersKey).Return(`[{"username":"otheruser","token":"token"}]`, true)
+-				pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 
+ 				err := plugin.PlaybackReport(baseRequest("playing"))
+ 				Expect(err).To(HaveOccurred())
+@@ -284,7 +282,6 @@ var _ = Describe("discordPlugin", func() {
+ 				pdk.PDKMock.On("GetConfig", caaEnabledKey).Return("", false)
+ 				pdk.PDKMock.On("GetConfig", activityNameKey).Return(configValue, configExists)
+ 				pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
+-				pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 
+ 				setupConnectMocks()
+ 				setupImageMocks()
+@@ -315,7 +312,6 @@ var _ = Describe("discordPlugin", func() {
+ 				pdk.PDKMock.On("GetConfig", activityNameKey).Return("Custom", true)
+ 				pdk.PDKMock.On("GetConfig", activityNameTemplateKey).Return(template, templateExists)
+ 				pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
+-				pdk.PDKMock.On("GetConfig", presenceStatusKey).Return("", false)
+ 
+ 				setupConnectMocks()
+ 				setupImageMocks()
+
+From 06b9d55f106a92956bd2a5cef8d35d3f5871f410 Mon Sep 17 00:00:00 2001
+From: vekvoid <vektrm@gmail.com>
+Date: Wed, 8 Jul 2026 11:53:09 +0200
+Subject: [PATCH 5/5] fix: mark presence as afk to restore mobile push
+ notifications
+
+---
+ main.go     |  2 +-
+ rpc.go      |  5 +++--
+ rpc_test.go | 10 +++++-----
+ 3 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/main.go b/main.go
+index 8b91159..e6396f3 100644
+--- a/main.go
++++ b/main.go
+@@ -218,7 +218,7 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
+ 		StatusDisplayType: statusDisplayType,
+ 		Timestamps:        ts,
+ 		Assets:            assets,
+-	}, userConfig.PresenceStatus)
++	}, userConfig.PresenceStatus, ts.Start)
+ }
+ 
+ func (p *discordPlugin) handleStopped(input scrobbler.PlaybackReportRequest) error {
+diff --git a/rpc.go b/rpc.go
+index 06c74bf..61f1868 100644
+--- a/rpc.go
++++ b/rpc.go
+@@ -238,7 +238,7 @@ func (r *discordRPC) processImage(imageURL, clientID, token string, ttl int64) (
+ // ============================================================================
+ 
+ // sendActivity sends an activity update to Discord.
+-func (r *discordRPC) sendActivity(clientID, username, token string, data activity, presenceStatus string) error {
++func (r *discordRPC) sendActivity(clientID, username, token string, data activity, presenceStatus string, since int64) error {
+ 	pdk.Log(pdk.LogInfo, fmt.Sprintf("Sending activity for user %s: %s - %s", username, data.Details, data.State))
+ 
+ 	// Truncate text fields to Discord's 128-character limit
+@@ -290,8 +290,9 @@ func (r *discordRPC) sendActivity(clientID, username, token string, data activit
+ 
+ 	presence := presencePayload{
+ 		Activities: []activity{data},
++		Since:      since,
+ 		Status:     status,
+-		Afk:        false,
++		Afk:        true,
+ 	}
+ 	return r.sendMessage(username, presenceOpCode, presence)
+ }
+diff --git a/rpc_test.go b/rpc_test.go
+index bb9a068..fb85d11 100644
+--- a/rpc_test.go
++++ b/rpc_test.go
+@@ -332,7 +332,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			}, defaultPresenceStatus)
++			}, defaultPresenceStatus, 0)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -364,7 +364,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			}, defaultPresenceStatus)
++			}, defaultPresenceStatus, 0)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -391,7 +391,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			}, defaultPresenceStatus)
++			}, defaultPresenceStatus, 0)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -419,7 +419,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallImage: navidromeLogoURL,
+ 					SmallText:  "Navidrome",
+ 				},
+-			}, defaultPresenceStatus)
++			}, defaultPresenceStatus, 0)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 
+@@ -479,7 +479,7 @@ var _ = Describe("discordRPC", func() {
+ 					SmallText:  "Navidrome",
+ 					SmallURL:   longURL,
+ 				},
+-			}, defaultPresenceStatus)
++			}, defaultPresenceStatus, 0)
+ 			Expect(err).ToNot(HaveOccurred())
+ 		})
+ 	})
