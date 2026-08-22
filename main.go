@@ -28,7 +28,7 @@ const (
 	activityNameKey         = "activityname"
 	activityDisplayKey      = "activitydisplaytype"
 	activityNameTemplateKey = "activitynametemplate"
-	pauseEnabled            = "pauseenabled"
+	pauseEnabledKey            = "pauseenabled"
 	spotifyLinksKey         = "spotifylinks"
 	caaEnabledKey           = "caaenabled"
 	uguuEnabledKey          = "uguuenabled"
@@ -191,6 +191,8 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
 
 	spotifyURL, artistSearchURL := resolveSpotifyLinks(input.Track)
 
+	pauseEnabled, _ := pdk.GetConfig(pauseEnabledKey)
+
 	rate := input.PlaybackRate
 	if rate <= 0 {
 		rate = 1.0
@@ -211,7 +213,7 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
 	}
 
 	if paused {
-		if pauseEnabled {
+		if pauseEnabled == "true" {
 			ts = activityTimestamps{Start: input.Timestamp * 1000}
 			assets.SmallImage = pauseIconURL
 			assets.SmallText = "Paused"
