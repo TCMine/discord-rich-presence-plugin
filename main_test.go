@@ -228,7 +228,7 @@ var _ = Describe("discordPlugin", func() {
 				Expect(sentPayload).To(ContainSubstring(`"end":1714600085000`))
 			})
 		})
-S
+		
 		Context("paused state", func() {
 			It("sends activity with frozen timestamps and pause icon overlay", func() {
 				setupConfigMocks()
