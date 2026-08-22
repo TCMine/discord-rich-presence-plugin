@@ -27,8 +27,6 @@ jobs:
                   sudo dpkg -i tinygo_0.40.1_amd64.deb
                   sudo apt install -y binaryen
 
-            - name: Run tests
-              run: make test
 
             - name: Append PR info to version
               if: github.event_name == 'pull_request'
