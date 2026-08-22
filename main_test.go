@@ -149,6 +149,8 @@ var _ = Describe("discordPlugin", func() {
 			pdk.PDKMock.On("GetConfig", uguuEnabledKey).Return("", false)
 			pdk.PDKMock.On("GetConfig", caaEnabledKey).Return("", false)
 			pdk.PDKMock.On("GetConfig", activityNameKey).Return("", false)
+			pdk.PDKMock.On("GetConfig", activityDisplayKey).Return("", false)
+			pdk.PDKMock.On("GetConfig", pauseEnabledKey).Return("", false)
 			pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
 		}
 
@@ -226,12 +228,13 @@ var _ = Describe("discordPlugin", func() {
 				Expect(sentPayload).To(ContainSubstring(`"end":1714600085000`))
 			})
 		})
-
+S
 		Context("paused state", func() {
 			It("sends activity with frozen timestamps and pause icon overlay", func() {
 				setupConfigMocks()
 				setupConnectMocks()
 				setupImageMocks()
+				pdk.PDKMock.On("GetConfig", pauseEnabledKey).Return("true", true)
 
 				var sentPayload string
 				host.WebSocketMock.On("SendText", "testuser", mock.Anything).Run(func(args mock.Arguments) {
@@ -282,6 +285,9 @@ var _ = Describe("discordPlugin", func() {
 				pdk.PDKMock.On("GetConfig", caaEnabledKey).Return("", false)
 				pdk.PDKMock.On("GetConfig", activityNameKey).Return(configValue, configExists)
 				pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
+				pdk.PDKMock.On("GetConfig", activityDisplayKey).Return("", false)
+				pdk.PDKMock.On("GetConfig", pauseEnabledKey).Return("", false)
+				pdk.PDKMock.On("GetConfig", activityNameTemplateKey).Return("", false)
 
 				setupConnectMocks()
 				setupImageMocks()
@@ -312,6 +318,8 @@ var _ = Describe("discordPlugin", func() {
 				pdk.PDKMock.On("GetConfig", activityNameKey).Return("Custom", true)
 				pdk.PDKMock.On("GetConfig", activityNameTemplateKey).Return(template, templateExists)
 				pdk.PDKMock.On("GetConfig", spotifyLinksKey).Return("", false)
+				pdk.PDKMock.On("GetConfig", activityDisplayKey).Return("", false)
+				pdk.PDKMock.On("GetConfig", pauseEnabledKey).Return("", false)
 
 				setupConnectMocks()
 				setupImageMocks()

@@ -28,7 +28,7 @@ const (
 	activityNameKey         = "activityname"
 	activityDisplayKey      = "activitydisplaytype"
 	activityNameTemplateKey = "activitynametemplate"
-	pauseEnabledKey            = "pauseenabled"
+	pauseEnabledKey         = "pauseenabled"
 	spotifyLinksKey         = "spotifylinks"
 	caaEnabledKey           = "caaenabled"
 	uguuEnabledKey          = "uguuenabled"
