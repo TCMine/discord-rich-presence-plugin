@@ -26,7 +26,9 @@ const (
 	clientIDKey             = "clientid"
 	usersKey                = "users"
 	activityNameKey         = "activityname"
+	activityDisplayKey      = "activitydisplaytype"
 	activityNameTemplateKey = "activitynametemplate"
+	pauseEnabled            = "pauseenabled"
 	spotifyLinksKey         = "spotifylinks"
 	caaEnabledKey           = "caaenabled"
 	uguuEnabledKey          = "uguuenabled"
@@ -56,6 +58,13 @@ const (
 	activityNameArtist  = "Artist"
 	activityNameAlbum   = "Album"
 	activityNameCustom  = "Custom"
+)
+
+// Activity display types
+const (
+	activityDisplayDefault = "Default"
+	activityDisplayState   = "State (Song Name)"
+	activityDisplayDetails  = "Details (Artist Name)"
 )
 
 // userConfig represents a user-token mapping from the config
@@ -202,9 +211,14 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
 	}
 
 	if paused {
-		ts = activityTimestamps{Start: input.Timestamp * 1000}
-		assets.SmallImage = pauseIconURL
-		assets.SmallText = "Paused"
+		if pauseEnabled {
+			ts = activityTimestamps{Start: input.Timestamp * 1000}
+			assets.SmallImage = pauseIconURL
+			assets.SmallText = "Paused"
+		} else {
+			rpc.clearActivity(input.Username)
+		}
+		
 	}
 
 	return rpc.sendActivity(clientID, input.Username, userConfig.Token, activity{
@@ -256,15 +270,26 @@ func connectUser(username string) (clientID string, config userConfig, err error
 	return clientID, config, nil
 }
 
+func resolveStatusDisplay() (int) {
+	activityDisplayOption, _ := pdk.GetConfig(activityDisplayKey)
+	switch activityDisplayOption {
+	case activityDisplayState:
+		return statusDisplayState
+	case activityDisplayDetails:
+		return statusDisplayDetails
+	}
+	return statusDisplayName
+}
+
 func resolveActivityName(track scrobbler.TrackInfo) (string, int) {
 	activityNameOption, _ := pdk.GetConfig(activityNameKey)
 	switch activityNameOption {
 	case activityNameTrack:
-		return track.Title, statusDisplayName
+		return track.Title, resolveStatusDisplay()
 	case activityNameAlbum:
-		return track.Album, statusDisplayName
+		return track.Album, resolveStatusDisplay()
 	case activityNameArtist:
-		return track.Artist, statusDisplayName
+		return track.Artist, resolveStatusDisplay()
 	case activityNameCustom:
 		template, _ := pdk.GetConfig(activityNameTemplateKey)
 		if template != "" {
@@ -282,10 +307,10 @@ func resolveActivityName(track scrobbler.TrackInfo) (string, int) {
 				"{artists}", artists,
 				"{album}", track.Album,
 			)
-			return r.Replace(template), statusDisplayName
+			return r.Replace(template), resolveStatusDisplay()
 		}
 	}
-	return "Navidrome", statusDisplayDetails
+	return "Navidrome", resolveStatusDisplay()
 }
 
 func resolveSpotifyLinks(track scrobbler.TrackInfo) (string, string) {

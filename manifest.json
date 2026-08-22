@@ -51,8 +51,8 @@
         },
         "activityname": {
           "type": "string",
-          "title": "Activity Name Display",
-          "description": "Choose what to display as the activity name in Discord Rich Presence",
+          "title": "Activity Name",
+          "description": "Choose what the activity name will be in the Discord Rich Presence",
           "enum": [
             "Default",
             "Track",
@@ -67,6 +67,22 @@
           "title": "Custom Activity Name Template",
           "description": "Template for the activity name. Available placeholders: {track}, {artist}, {artists}, {album}",
           "default": "{artist} - {track}"
+        },
+        "activitydisplaytype": {
+          "type": "string",
+          "title": "Activity Display Type",
+          "description": "Choose which field to display in the member list",
+          "enum": [
+            "Default",
+            "State (Song Name)",
+            "Details (Artist Name)"
+          ],
+          "default": "Default"
+        },
+        "pauseenabled": {
+          "type": "boolean",
+          "title": "Enable displaying paused status",
+          "default": false
         },
         "caaenabled": {
           "type": "boolean",
@@ -165,6 +181,17 @@
               }
             }
           }
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/activitydisplaytype",
+          "options": {
+            "format": "radio"
+          }
+        },
+        {
+          "type": "Control",
+          "scope": "#/properties/pauseenabled"
         },
         {
           "type": "Control",
