@@ -171,7 +171,7 @@ func uploadToUguu(imageData []byte, contentType string) (string, error) {
 	boundary := "----NavidromeCoverArt"
 	var body []byte
 	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
-	body = append(body, []byte(fmt.Sprintf("Content-Disposition: form-data; name=\"files[]\"; filename=\"cover.jpg\"\r\n"))...)
+	body = append(body, []byte(fmt.Sprintf("Content-Disposition: form-data; name=\"files[]\"; filename=\"cover.webp\"\r\n"))...)
 	body = append(body, []byte(fmt.Sprintf("Content-Type: %s\r\n", contentType))...)
 	body = append(body, []byte("\r\n")...)
 	body = append(body, imageData...)

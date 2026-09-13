@@ -218,7 +218,7 @@ func (p *discordPlugin) handlePlayingOrPaused(input scrobbler.PlaybackReportRequ
 			assets.SmallImage = pauseIconURL
 			assets.SmallText = "Paused"
 		} else {
-			p.handleStopped(input)
+			pdk.Log(pdk.LogInfo, fmt.Sprintf("Pausing presence.", rpc.clearActivity(input.Username)))
 		}
 		
 	}
