@@ -167,6 +167,7 @@ func (p *discordPlugin) PlaybackReport(input scrobbler.PlaybackReportRequest) er
 		return p.handlePlayingOrPaused(input)
 	case stateStopped, stateExpired:
 		return p.handleStopped(input)
+		pdk.Log(pdk.LogInfo, "bob")
 	default:
 		return nil
 	}
