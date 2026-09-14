@@ -160,14 +160,15 @@ func (p *discordPlugin) Scrobble(_ scrobbler.ScrobbleRequest) error {
 // PlaybackReport handles playback state reports from Navidrome.
 func (p *discordPlugin) PlaybackReport(input scrobbler.PlaybackReportRequest) error {
 	pdk.Log(pdk.LogDebug, fmt.Sprintf("PlaybackReport request: %s", formatRequest(input)))
+	// pdk.Log(pdk.LogInfo, "bob", input.State)
 	switch input.State {
 	case statePlaying:
 		return p.handlePlayingOrPaused(input)
 	case statePaused:
 		return p.handlePlayingOrPaused(input)
 	case stateStopped, stateExpired:
+		pdk.Log(pdk.LogInfo, "bob", input.State)
 		return p.handleStopped(input)
-		pdk.Log(pdk.LogInfo, "bob")
 	default:
 		return nil
 	}
