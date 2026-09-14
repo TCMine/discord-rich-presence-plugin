@@ -74,8 +74,8 @@
           "description": "Choose which field to display in the member list",
           "enum": [
             "Default",
-            "State (Song Name)",
-            "Details (Artist Name)"
+            "State (Artist Name)",
+            "Details (Song Name)"
           ],
           "default": "Default"
         },
