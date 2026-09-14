@@ -161,13 +161,13 @@ func (p *discordPlugin) Scrobble(_ scrobbler.ScrobbleRequest) error {
 func (p *discordPlugin) PlaybackReport(input scrobbler.PlaybackReportRequest) error {
 	pdk.Log(pdk.LogDebug, fmt.Sprintf("PlaybackReport request: %s", formatRequest(input)))
 	// pdk.Log(pdk.LogInfo, "bob", input.State)
+	pdk.Log(pdk.LogInfo, fmt.Sprintf("bob %s", input.State))
 	switch input.State {
 	case statePlaying:
 		return p.handlePlayingOrPaused(input)
 	case statePaused:
 		return p.handlePlayingOrPaused(input)
-	case stateStopped, stateExpired:
-		pdk.Log(pdk.LogInfo, fmt.Sprintf("bob %s", input.State))
+	case stateExpired:
 		return p.handleStopped(input)
 	default:
 		return nil
