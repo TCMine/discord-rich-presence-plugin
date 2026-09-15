@@ -199,8 +199,9 @@ func uploadToUguu(imageData []byte, contentType string) (string, error) {
 	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
 	body = append(body, []byte(
 		`Content-Disposition: form-data; name="expire"`+"\r\n\r\n",
+		strconv.FormatInt(uploadMaxTime, 10)
 	)...)
-	body = append(body, []byte(strconv.Itoa(uploadMaxTime))...)
+	// body = append(body, []byte(strconv.FormatInt(uploadMaxTime, 10))...)
 	body = append(body, []byte("\r\n")...)
 	body = append(body, []byte(fmt.Sprintf("\r\n--%s--\r\n", boundary))...)
 
