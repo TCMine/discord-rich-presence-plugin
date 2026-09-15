@@ -161,7 +161,7 @@ func getImageViaUguu(username, trackID string) string {
 	}
 
 	// Check cache first
-	imageHash := MD5(data)
+	imageHash := MD5(string(data))
 	cacheKey := fmt.Sprintf("uguu.artwork.%s", imageHash)
 	cachedURL, exists, err := host.CacheGetString(cacheKey)
 	if err == nil && exists {
