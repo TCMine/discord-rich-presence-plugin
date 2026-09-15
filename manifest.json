@@ -15,7 +15,8 @@
         "discord.com",
         "uguu.se",
         "labs.api.listenbrainz.org",
-        "coverartarchive.org"
+        "coverartarchive.org",
+        "tmpfiles.org"
       ]
     },
     "websocket": {
@@ -92,7 +93,7 @@
         },
         "uguuenabled": {
           "type": "boolean",
-          "title": "Upload artwork to uguu.se (enable if Navidrome is not publicly accessible)",
+          "title": "Upload artwork to hosting provider (enable if Navidrome is not publicly accessible)",
           "default": false
         },
         "spotifylinks": {

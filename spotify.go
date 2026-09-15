@@ -41,7 +41,7 @@ func spotifySearchURL(terms ...string) string {
 	if query == "" {
 		return ""
 	}
-	return "https://open.spotify.com/search/" + url.PathEscape(query)
+	return "https://www.last.fm/search?q=" + url.PathEscape(query)
 }
 
 // spotifyCacheKey returns a deterministic cache key for a track's Spotify URL.

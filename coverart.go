@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
+
+	"crypto/md5"
+	"encoding/hex"
 
 	"github.com/navidrome/navidrome/plugins/pdk/go/host"
 	"github.com/navidrome/navidrome/plugins/pdk/go/pdk"
@@ -18,6 +22,18 @@ const (
 
 	caaTimeOut = 4000 // 4 seconds timeout for CAA HEAD requests to avoid blocking NowPlaying
 )
+
+const (
+	uploadCacheImgHash string = ""
+	uploadCacheURL string = ""
+	uploadCacheTimestamp int64 = 0
+	uploadMaxTime int64 = 1800
+)
+
+func MD5(input string) string {
+	sum := md5.Sum([]byte(input))
+	return hex.EncodeToString(sum[:])
+}
 
 // headCoverArt sends a HEAD request to the given CAA URL without following redirects.
 // Returns (location, true) on 307 with a Location header (image exists),
@@ -139,29 +155,31 @@ func getImageDirect(trackID string) string {
 
 // getImageViaUguu fetches artwork and uploads it to uguu.se.
 func getImageViaUguu(username, trackID string) string {
-	// Check cache first
-	cacheKey := fmt.Sprintf("uguu.artwork.%s", trackID)
-	cachedURL, exists, err := host.CacheGetString(cacheKey)
-	if err == nil && exists {
-		pdk.Log(pdk.LogDebug, fmt.Sprintf("Cache hit for uguu artwork: %s", trackID))
-		return cachedURL
-	}
-
-	// Fetch artwork data from Navidrome
 	contentType, data, err := host.SubsonicAPICallRaw(fmt.Sprintf("/getCoverArt?u=%s&id=%s&size=300", username, trackID))
 	if err != nil {
 		pdk.Log(pdk.LogWarn, fmt.Sprintf("Failed to fetch artwork data: %v", err))
 		return ""
 	}
 
+	// Check cache first
+	imageHash := MD5(data)
+	cacheKey := fmt.Sprintf("uguu.artwork.%s", imageHash)
+	cachedURL, exists, err := host.CacheGetString(cacheKey)
+	if err == nil && exists {
+		pdk.Log(pdk.LogDebug, fmt.Sprintf("Cache hit for uploaded artwork: %s", trackID))
+		return cachedURL
+	}
+
+	// Fetch artwork data from Navidrome
+
 	// Upload to uguu.se
 	url, err := uploadToUguu(data, contentType)
 	if err != nil {
-		pdk.Log(pdk.LogWarn, fmt.Sprintf("Failed to upload to uguu.se: %v", err))
+		pdk.Log(pdk.LogWarn, fmt.Sprintf("Failed to upload image: %v", err))
 		return ""
 	}
 
-	_ = host.CacheSetString(cacheKey, url, uguuCacheTTL)
+	_ = host.CacheSetString(cacheKey, url, uploadMaxTime)
 	return url
 }
 
@@ -171,36 +189,45 @@ func uploadToUguu(imageData []byte, contentType string) (string, error) {
 	boundary := "----NavidromeCoverArt"
 	var body []byte
 	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
-	body = append(body, []byte(fmt.Sprintf("Content-Disposition: form-data; name=\"files[]\"; filename=\"cover.webp\"\r\n"))...)
+	body = append(body, []byte(fmt.Sprintf("Content-Disposition: form-data; name=\"file\"; filename=\"cover.webp\"\r\n"))...)
 	body = append(body, []byte(fmt.Sprintf("Content-Type: %s\r\n", contentType))...)
 	body = append(body, []byte("\r\n")...)
 	body = append(body, imageData...)
+	body = append(body, []byte("\r\n")...)
+
+	//expire := uploadMaxTime // 30 minutes
+	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
+	body = append(body, []byte(
+		`Content-Disposition: form-data; name="expire"`+"\r\n\r\n",
+	)...)
+	body = append(body, []byte(strconv.Itoa(uploadMaxTime))...)
+	body = append(body, []byte("\r\n")...)
 	body = append(body, []byte(fmt.Sprintf("\r\n--%s--\r\n", boundary))...)
 
 	resp, err := host.HTTPSend(host.HTTPRequest{
 		Method:  "POST",
-		URL:     "https://uguu.se/upload",
+		URL:     "https://tmpfiles.org/api/v1/upload",
 		Headers: map[string]string{"Content-Type": fmt.Sprintf("multipart/form-data; boundary=%s", boundary)},
 		Body:    body,
 	})
 	if err != nil {
-		return "", fmt.Errorf("uguu.se upload failed: %w", err)
+		return "", fmt.Errorf("Artwork upload failed: %w", err)
 	}
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("uguu.se upload failed: HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("Artwork upload failed: HTTP %d", resp.StatusCode)
 	}
 
 	var result uguuResponse
 	if err := json.Unmarshal(resp.Body, &result); err != nil {
-		return "", fmt.Errorf("failed to parse uguu.se response: %w", err)
+		return "", fmt.Errorf("failed to parse API response: %w", err)
 	}
 
 	if !result.Success || len(result.Files) == 0 {
-		return "", fmt.Errorf("uguu.se upload was not successful")
+		return "", fmt.Errorf("Artwork upload was not successful")
 	}
 
 	if result.Files[0].URL == "" {
-		return "", fmt.Errorf("uguu.se returned empty URL")
+		return "", fmt.Errorf("Upload API returned empty URL")
 	}
 
 	return result.Files[0].URL, nil
