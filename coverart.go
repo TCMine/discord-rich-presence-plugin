@@ -189,25 +189,34 @@ func uploadToUguu(imageData []byte, contentType string) (string, error) {
 	var body []byte
 
 	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
-	body = append(body, []byte(
-		"Content-Disposition: form-data; name=\"reqtype\"\r\n\r\n",
-	)...)
-	body = append(body, []byte("fileupload\r\n")...)
-	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
-	
-	body = append(body, []byte(
-		"Content-Disposition: form-data; name=\"time\"\r\n\r\n",
-	)...)
-	body = append(body, []byte("1h\r\n")...)
-	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
-		
-	body = append(body, []byte(
-		"Content-Disposition: form-data; name=\"fileToUpload\"; filename=\"cover.webp\"\r\n",
-	)...)
-	body = append(body, []byte(fmt.Sprintf("Content-Type: %s\r\n\r\n", contentType))...)
-	body = append(body, imageData...)
+	body = append(body, []byte(fmt.Sprintf("Content-Disposition: form-data; name=\"files[]\"; filename=\"cover.webp\"\r\n"))...)
+	body = append(body, []byte(fmt.Sprintf("Content-Type: %s\r\n", contentType))...)
 	body = append(body, []byte("\r\n")...)
+	body = append(body, imageData...)
+	body = append(body, []byte(fmt.Sprintf("\r\n--%s--\r\n", boundary))...)
 
+	// litterbox 
+	// body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
+	// body = append(body, []byte(
+	// 	"Content-Disposition: form-data; name=\"reqtype\"\r\n\r\n",
+	// )...)
+	// body = append(body, []byte("fileupload\r\n")...)
+	// body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
+	
+	// body = append(body, []byte(
+	// 	"Content-Disposition: form-data; name=\"time\"\r\n\r\n",
+	// )...)
+	// body = append(body, []byte("1h\r\n")...)
+	// body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
+		
+	// body = append(body, []byte(
+	// 	"Content-Disposition: form-data; name=\"fileToUpload\"; filename=\"cover.webp\"\r\n",
+	// )...)
+	// body = append(body, []byte(fmt.Sprintf("Content-Type: %s\r\n\r\n", contentType))...)
+	// body = append(body, imageData...)
+	// body = append(body, []byte("\r\n")...)
+
+	// tmpfiles
 	//expire := uploadMaxTime // 30 minutes
 	// body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
 	// body = append(body, []byte(
