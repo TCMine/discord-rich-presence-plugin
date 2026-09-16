@@ -228,7 +228,7 @@ func uploadToUguu(imageData []byte, contentType string) (string, error) {
 
 	resp, err := host.HTTPSend(host.HTTPRequest{
 		Method:  "POST",
-		URL:     "https://litterbox.catbox.moe/resources/internals/api.php",
+		URL:     "https://uguu.se/upload",
 		Headers: map[string]string{"Content-Type": fmt.Sprintf("multipart/form-data; boundary=%s", boundary)},
 		Body:    body,
 	})
