@@ -63,8 +63,8 @@ const (
 // Activity display types
 const (
 	activityDisplayDefault = "Default"
-	activityDisplayState   = "State (Song Name)"
-	activityDisplayDetails  = "Details (Artist Name)"
+	activityDisplayState   = "State (Artist Name)"
+	activityDisplayDetails  = "Details (Song Name)"
 )
 
 // userConfig represents a user-token mapping from the config
