@@ -27,7 +27,7 @@ const (
 	uploadCacheImgHash string = ""
 	uploadCacheURL string = ""
 	uploadCacheTimestamp int64 = 0
-	uploadMaxTime int64 = 1800
+	uploadMaxTime int64 = 3600
 )
 
 func MD5(input string) string {
@@ -188,25 +188,39 @@ func uploadToUguu(imageData []byte, contentType string) (string, error) {
 	// Build multipart/form-data body manually (TinyGo-compatible)
 	boundary := "----NavidromeCoverArt"
 	var body []byte
+
 	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
-	body = append(body, []byte(fmt.Sprintf("Content-Disposition: form-data; name=\"file\"; filename=\"cover.webp\"\r\n"))...)
-	body = append(body, []byte(fmt.Sprintf("Content-Type: %s\r\n", contentType))...)
-	body = append(body, []byte("\r\n")...)
+	body = append(body, []byte(
+		"Content-Disposition: form-data; name=\"reqtype\"\r\n\r\n",
+	)...)
+	body = append(body, []byte("fileupload\r\n")...)
+	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
+	
+	body = append(body, []byte(
+		"Content-Disposition: form-data; name=\"time\"\r\n\r\n",
+	)...)
+	body = append(body, []byte("1h\r\n")...)
+	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
+		
+	body = append(body, []byte(
+		"Content-Disposition: form-data; name=\"fileToUpload\"; filename=\"cover.webp\"\r\n",
+	)...)
+	body = append(body, []byte(fmt.Sprintf("Content-Type: %s\r\n\r\n", contentType))...)
 	body = append(body, imageData...)
 	body = append(body, []byte("\r\n")...)
 
 	//expire := uploadMaxTime // 30 minutes
-	body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
-	body = append(body, []byte(
-		`Content-Disposition: form-data; name="expire"`+"\r\n\r\n",
-	)...)
-	body = append(body, []byte(strconv.FormatInt(uploadMaxTime, 10))...)
-	body = append(body, []byte("\r\n")...)
-	body = append(body, []byte(fmt.Sprintf("\r\n--%s--\r\n", boundary))...)
+	// body = append(body, []byte(fmt.Sprintf("--%s\r\n", boundary))...)
+	// body = append(body, []byte(
+	// 	`Content-Disposition: form-data; name="expire"`+"\r\n\r\n",
+	// )...)
+	// body = append(body, []byte(strconv.FormatInt(uploadMaxTime, 10))...)
+	// body = append(body, []byte("\r\n")...)
+	// body = append(body, []byte(fmt.Sprintf("\r\n--%s--\r\n", boundary))...)
 
 	resp, err := host.HTTPSend(host.HTTPRequest{
 		Method:  "POST",
-		URL:     "https://tmpfiles.org/api/v1/upload",
+		URL:     "https://litterbox.catbox.moe/resources/internals/api.php",
 		Headers: map[string]string{"Content-Type": fmt.Sprintf("multipart/form-data; boundary=%s", boundary)},
 		Body:    body,
 	})
