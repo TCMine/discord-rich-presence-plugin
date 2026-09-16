@@ -26,7 +26,7 @@ const (
 	uploadCacheImgHash string = ""
 	uploadCacheURL string = ""
 	uploadCacheTimestamp int64 = 0
-	uploadMaxTime int64 = 3600
+	uploadMaxTime int64 = uguuCacheTTL//3600
 )
 
 func MD5(input string) string {
